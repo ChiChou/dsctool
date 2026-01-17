@@ -20,9 +20,13 @@ enum Commands {
     },
     Sections {
         path: String,
+        #[arg(short, long)]
+        module: Option<String>,
     },
     Symbols {
         path: String,
+        #[arg(short, long)]
+        module: Option<String>,
     },
     Dump {
         path: String,
@@ -107,9 +111,20 @@ fn cmd_images(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn cmd_sections(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
+fn cmd_sections(
+    cache: &DyldCache<LittleEndian>,
+    filter_module: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     for image in cache.images() {
-        println!("{}", image.path().unwrap());
+        let image_path = image.path().unwrap_or("N/A");
+
+        if let Some(filter) = filter_module {
+            if image_path != filter {
+                continue;
+            }
+        }
+
+        println!("{}", image_path);
         if let Ok(obj) = image.parse_object() {
             for section in obj.sections() {
                 let base = section.address();
@@ -126,12 +141,27 @@ fn cmd_sections(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn cmd_symbols(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
+fn cmd_symbols(
+    cache: &DyldCache<LittleEndian>,
+    filter_module: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     for image in cache.images() {
-        println!("{}", image.path().unwrap());
+        let image_path = image.path().unwrap_or("N/A");
+
+        if let Some(filter) = filter_module {
+            if image_path != filter {
+                continue;
+            }
+        }
+
+        println!("{}", image_path);
         if let Ok(obj) = image.parse_object() {
             for symbol in obj.symbols() {
-                println!("0x{:X} {}", symbol.address(), symbol.name().unwrap())
+                println!(
+                    "0x{:X} {}",
+                    symbol.address(),
+                    symbol.name().unwrap_or("N/A")
+                )
             }
         }
     }
@@ -171,10 +201,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match &cli.command {
         Commands::Images { path } => with_dyld_cache(path, |cache| cmd_images(cache)),
-        Commands::Sections { path } => with_dyld_cache(path, |cache| cmd_sections(cache)),
+        Commands::Sections { path, module } => {
+            with_dyld_cache(path, |cache| cmd_sections(cache, module.as_deref()))
+        }
         Commands::Dump { path, addr, size } => {
             with_dyld_cache(path, |cache| cmd_dump(cache, *addr, *size as usize))
         }
-        Commands::Symbols { path } => with_dyld_cache(path, |cache| cmd_symbols(cache)),
+        Commands::Symbols { path, module } => {
+            with_dyld_cache(path, |cache| cmd_symbols(cache, module.as_deref()))
+        }
     }
 }
