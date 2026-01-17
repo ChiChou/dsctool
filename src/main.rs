@@ -5,6 +5,9 @@ use object::{LittleEndian, Object, ObjectSection, ObjectSymbol};
 use std::error::Error;
 use std::fs::File;
 
+mod utils;
+use utils::print_hex_dump;
+
 #[derive(Parser)]
 #[command(name = "dsc")]
 #[command(about = "A utility for inspecting Dyld Shared Cache")]
@@ -68,40 +71,6 @@ where
     let cache = DyldCache::<LittleEndian>::parse(&*main_mmap, &subcache_data)?;
 
     action(&cache)
-}
-
-fn print_hex_dump(start_addr: u64, data: &[u8]) {
-    println!(
-        "Found VM address 0x{:X}, {} bytes available",
-        start_addr,
-        data.len()
-    );
-
-    for (row_idx, row) in data.chunks(16).enumerate() {
-        let addr = start_addr + (row_idx * 16) as u64;
-        print!("{:016X}: ", addr);
-        for b in row {
-            print!("{:02X} ", b);
-        }
-
-        if row.len() < 16 {
-            for _ in 0..(16 - row.len()) {
-                print!("   ");
-            }
-        }
-
-        print!(" |");
-
-        for b in row {
-            let ch = if b.is_ascii_graphic() || *b == b' ' {
-                *b as char
-            } else {
-                '.'
-            };
-            print!("{}", ch);
-        }
-        println!("|");
-    }
 }
 
 fn cmd_images(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
@@ -188,7 +157,12 @@ fn cmd_dump(
             let end = std::cmp::min(data.len(), off + size);
             let bytes = &data[off..end];
 
-            println!("Mapped to file offset 0x{:X}", off);
+            eprintln!("Mapped to file offset 0x{:X}", off);
+            eprintln!(
+                "Found VM address 0x{:X}, {} bytes available",
+                vmaddr,
+                bytes.len()
+            );
             print_hex_dump(vmaddr, bytes);
             Ok(())
         }
