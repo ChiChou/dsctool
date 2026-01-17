@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use object::read::macho::DyldCache;
-use object::{LittleEndian, Object, ObjectSection};
+use object::{LittleEndian, Object, ObjectSection, ObjectSymbol};
 use std::error::Error;
 use std::fs::File;
 
@@ -19,6 +19,9 @@ enum Commands {
         path: String,
     },
     Sections {
+        path: String,
+    },
+    Symbols {
         path: String,
     },
     Dump {
@@ -123,6 +126,18 @@ fn cmd_sections(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn cmd_symbols(cache: &DyldCache<LittleEndian>) -> Result<(), Box<dyn Error>> {
+    for image in cache.images() {
+        println!("{}", image.path().unwrap());
+        if let Ok(obj) = image.parse_object() {
+            for symbol in obj.symbols() {
+                println!("0x{:X} {}", symbol.address(), symbol.name().unwrap())
+            }
+        }
+    }
+    Ok(())
+}
+
 fn cmd_dump(
     cache: &DyldCache<LittleEndian>,
     vmaddr: u64,
@@ -160,5 +175,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::Dump { path, addr, size } => {
             with_dyld_cache(path, |cache| cmd_dump(cache, *addr, *size as usize))
         }
+        Commands::Symbols { path } => with_dyld_cache(path, |cache| cmd_symbols(cache)),
     }
 }
